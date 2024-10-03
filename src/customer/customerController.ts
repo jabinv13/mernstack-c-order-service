@@ -10,6 +10,7 @@ export class CustomerController {
     private logger: Logger,
   ) {
     this.get = this.get.bind(this);
+    this.addAddress = this.addAddress.bind(this);
   }
   async get(req: Request, res: Response) {
     console.log("customer ");
@@ -34,4 +35,13 @@ export class CustomerController {
 
     res.json(customer);
   }
+
+  addAddress = async (req: Request, res: Response) => {
+    const { sub: userId } = req.auth;
+    const _id = req.params.id;
+    const text = req.body.address;
+
+    const customer = await this.customerService.update(userId, _id, text);
+    return res.json(customer);
+  };
 }

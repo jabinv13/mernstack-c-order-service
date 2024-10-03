@@ -11,4 +11,24 @@ export class CustomerService {
     const newCustomer = await customerModel.create(customer);
     return newCustomer.save();
   }
+
+  async update(userId: string, _id: string, text: string) {
+    console.log(text);
+    return await customerModel.findOneAndUpdate(
+      {
+        _id,
+        userId,
+      },
+      {
+        $push: {
+          addresses: {
+            text: text,
+            // todo: implement isDefault field in future.
+            isDefault: false,
+          },
+        },
+      },
+      { new: true },
+    );
+  }
 }
