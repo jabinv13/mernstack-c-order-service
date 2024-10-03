@@ -9,12 +9,12 @@ const connectDB = async () => {
     });
 
     mongoose.connection.on("error", (err) => {
-      logger.error("Error in connecting to database.", err);
+      logger.error("Error in connecting to the database.", err);
     });
 
     await mongoose.connect(config.get("database.url"));
   } catch (err) {
-    logger.error("Error in connecting to database.", err);
+    logger.error("Error in connecting to the database.", err);
     process.exit(1);
   }
 };
