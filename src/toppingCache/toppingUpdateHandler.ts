@@ -3,6 +3,8 @@ import toppingCacheModel from "./toppingCacheModel";
 
 export const handleToppingUpdate = async (value: string) => {
   // todo: wrap this parsing in try catch
+
+  console.log("topping");
   const topping: ToppingMessage = JSON.parse(value);
 
   return await toppingCacheModel.updateOne(
