@@ -15,11 +15,13 @@ import idempotencyModel from "../idempotency/idempotencyModel";
 import mongoose from "mongoose";
 import createHttpError from "http-errors";
 import { PaymentGW } from "../payment/paymentTypes";
+import { MessageBroker } from "../types/broker";
 export class OrderController {
   constructor(
     private orderService: OrderService,
     private logger: Logger,
     private paymentGw: PaymentGW,
+    private broker: MessageBroker,
   ) {
     this.calculateTotal = this.calculateTotal.bind(this);
     this.create = this.create.bind(this);
@@ -124,10 +126,14 @@ export class OrderController {
         idempotencyKey: idempotencyKey as string,
       });
 
+      await this.broker.sendMessage("order", JSON.stringify(newOrder));
+
       //todo : update order document
 
       res.json({ paymentUrl: session.paymentUrl });
     }
+
+    await this.broker.sendMessage("order", JSON.stringify(newOrder));
 
     // todo: Update order document -> paymentId -> sessionId
     return res.json({ paymentUrl: null });

@@ -2,9 +2,13 @@ import { Request, Response } from "express";
 import { PaymentGW } from "./paymentTypes";
 import orderModel from "../order/orderModel";
 import { PaymentStatus } from "../order/orderTypes";
+import { MessageBroker } from "../types/broker";
 
 export class PaymentController {
-  constructor(private paymentGw: PaymentGW) {}
+  constructor(
+    private paymentGw: PaymentGW,
+    private broker: MessageBroker,
+  ) {}
   handleWebhook = async (req: Request, res: Response) => {
     const webhookBody = req.body;
 
@@ -28,6 +32,10 @@ export class PaymentController {
         },
         { new: true },
       );
+
+      //todo:Think about message broker fail
+
+      await this.broker.sendMessage("order", JSON.stringify(updatedOrder));
     }
 
     return res.json({ success: true });
