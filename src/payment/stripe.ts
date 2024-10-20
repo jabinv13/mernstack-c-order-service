@@ -18,11 +18,11 @@ export class StripeGW implements PaymentGW {
           orderId: options.orderId,
           restaurantId: options.tenantId,
         },
-        // billing_address_collection: "required",
+        billing_address_collection: "required",
         // todo: In Future, Capture structured address from customer
         // payment_intent_data: {
         //     shipping: {
-        //         name: "Rakesh K",
+        //         name: "jabin v",
         //         address: {
         //             line1: "some line",
         //             city: "Mumbai",
