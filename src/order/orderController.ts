@@ -10,7 +10,7 @@ import {
 import productCacheModel from "../productCache/productCacheModel";
 import toppingCacheModel from "../toppingCache/toppingCacheModel";
 import couponModel from "../coupon/couponModel";
-import { OrderStatus, PaymentStatus } from "./orderTypes";
+import { OrderStatus, PaymentMode, PaymentStatus } from "./orderTypes";
 import idempotencyModel from "../idempotency/idempotencyModel";
 import mongoose from "mongoose";
 import createHttpError from "http-errors";
@@ -115,18 +115,22 @@ export class OrderController {
     }
 
     //Payment proccessing
+    if (paymentMode === PaymentMode.CARD) {
+      const session = await this.paymentGw.createSession({
+        amount: finalTotal,
+        orderId: newOrder[0]._id.toString(),
+        tenantId: tenantId,
+        currency: "inr",
+        idempotencyKey: idempotencyKey as string,
+      });
 
-    const session = await this.paymentGw.createSession({
-      amount: finalTotal,
-      orderId: newOrder[0]._id.toString(),
-      tenantId: tenantId,
-      currency: "inr",
-      idempotencyKey: idempotencyKey as string,
-    });
+      //todo : update order document
 
-    //todo : update order document
+      res.json({ paymentUrl: session.paymentUrl });
+    }
 
-    res.json({ paymentUrl: session.paymentUrl });
+    // todo: Update order document -> paymentId -> sessionId
+    return res.json({ paymentUrl: null });
   }
 
   private calculateTotal = async (cart: CartItem[]) => {
