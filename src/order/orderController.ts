@@ -31,6 +31,7 @@ export class OrderController {
     this.getCurrentToppingPrice = this.getCurrentToppingPrice.bind(this);
     this.getDiscountPercentage = this.getDiscountPercentage.bind(this);
     this.getItemTotal = this.getItemTotal.bind(this);
+    this.getMine = this.getMine.bind(this);
   }
 
   // this.get = this.get.bind(this);
@@ -141,6 +142,8 @@ export class OrderController {
       return res.json({ paymentUrl: null });
     }
   }
+
+  //todo: implement service layer this is for test only
   getMine = async (req: AuthRequest, res: Response, next: NextFunction) => {
     const userId = req.auth.sub;
 
@@ -156,13 +159,48 @@ export class OrderController {
     }
 
     // todo: implement pagination.
-    const orders = await orderModel.find(
-      { customerId: customer._id },
-      { cart: 0 },
-    );
+    const orders = await orderModel
+      .find({ customerId: customer._id }, { cart: 0 })
+      .sort({ createdAt: -1 })
+      .limit(7);
 
     return res.json(orders);
   };
+
+  async getSingle(req: AuthRequest, res: Response, next: NextFunction) {
+    const orderId = req.params.orderId;
+    const { sub: userId, role, tenant: tenantId } = req.auth;
+
+    const order = await orderModel.findOne({ _id: orderId });
+
+    if (!order) {
+      return next(createHttpError(400, "Order does not exists."));
+    }
+
+    if (role === "admin") {
+      return res.json(order);
+    }
+
+    const myRestaurantOrder = order.tenantId === tenantId;
+    if (role === "manager" && myRestaurantOrder) {
+      return res.json(order);
+    }
+    if (role === "customer") {
+      const customer = await customerModel.findOne({ userId });
+
+      if (!customer) {
+        return next(createHttpError(400, "No customer found."));
+      }
+
+      if (order.customerId._id.toString() === customer._id.toString()) {
+        return res.json(order);
+      }
+    }
+
+    //none of the have the permission to fetch the order
+
+    return next(createHttpError(403, "Operation not permitted."));
+  }
 
   private calculateTotal = async (cart: CartItem[]) => {
     const productIds = cart.map((item) => item._id);

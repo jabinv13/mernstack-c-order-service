@@ -15,7 +15,11 @@ app.use(express.json());
 app.use(
   cors({
     //todo:move to .env file
-    origin: ["http://localhost:5173", "http://localhost:3000"],
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:8000",
+    ],
     credentials: true,
   }),
 );
