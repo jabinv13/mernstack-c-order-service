@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { OrderService } from "./orderService";
 import { Logger } from "winston";
 import {
+  AuthRequest,
   CartItem,
   ProductPricingCache,
   Topping,
@@ -16,6 +17,8 @@ import mongoose from "mongoose";
 import createHttpError from "http-errors";
 import { PaymentGW } from "../payment/paymentTypes";
 import { MessageBroker } from "../types/broker";
+import orderModel from "./orderModel";
+import customerModel from "../customer/customerModel";
 export class OrderController {
   constructor(
     private orderService: OrderService,
@@ -131,13 +134,35 @@ export class OrderController {
       //todo : update order document
 
       res.json({ paymentUrl: session.paymentUrl });
+    } else {
+      await this.broker.sendMessage("order", JSON.stringify(newOrder));
+
+      // todo: Update order document -> paymentId -> sessionId
+      return res.json({ paymentUrl: null });
+    }
+  }
+  getMine = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const userId = req.auth.sub;
+
+    if (!userId) {
+      return next(createHttpError(400, "No userId found."));
     }
 
-    await this.broker.sendMessage("order", JSON.stringify(newOrder));
+    // todo: Add error handling.
+    const customer = await customerModel.findOne({ userId });
 
-    // todo: Update order document -> paymentId -> sessionId
-    return res.json({ paymentUrl: null });
-  }
+    if (!customer) {
+      return next(createHttpError(400, "No customer found."));
+    }
+
+    // todo: implement pagination.
+    const orders = await orderModel.find(
+      { customerId: customer._id },
+      { cart: 0 },
+    );
+
+    return res.json(orders);
+  };
 
   private calculateTotal = async (cart: CartItem[]) => {
     const productIds = cart.map((item) => item._id);
