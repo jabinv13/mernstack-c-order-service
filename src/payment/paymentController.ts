@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
 import { PaymentGW } from "./paymentTypes";
 import orderModel from "../order/orderModel";
-import { PaymentStatus } from "../order/orderTypes";
+import { OrderEvents, PaymentStatus } from "../order/orderTypes";
 import { MessageBroker } from "../types/broker";
+import customerModel from "../customer/customerModel";
 
 export class PaymentController {
   constructor(
@@ -33,9 +34,25 @@ export class PaymentController {
         { new: true },
       );
 
+      const customer = await customerModel.findOne({
+        _id: updatedOrder.customerId,
+      });
+
       //todo:Think about message broker fail
 
-      await this.broker.sendMessage("order", JSON.stringify(updatedOrder));
+      const brokerMessage = {
+        event_type: OrderEvents.PAYMENT_STATUS_UPDATE,
+        data: {
+          ...updatedOrder.toObject(),
+          customerId: customer,
+        },
+      };
+
+      await this.broker.sendMessage(
+        "order",
+        JSON.stringify(brokerMessage),
+        updatedOrder._id.toString(),
+      );
     }
 
     return res.json({ success: true });

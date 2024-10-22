@@ -5,13 +5,19 @@ import {
   AuthRequest,
   CartItem,
   ProductPricingCache,
+  ROLES,
   Topping,
   ToppingPriceCache,
 } from "../types";
 import productCacheModel from "../productCache/productCacheModel";
 import toppingCacheModel from "../toppingCache/toppingCacheModel";
 import couponModel from "../coupon/couponModel";
-import { OrderStatus, PaymentMode, PaymentStatus } from "./orderTypes";
+import {
+  OrderEvents,
+  OrderStatus,
+  PaymentMode,
+  PaymentStatus,
+} from "./orderTypes";
 import idempotencyModel from "../idempotency/idempotencyModel";
 import mongoose from "mongoose";
 import createHttpError from "http-errors";
@@ -19,6 +25,7 @@ import { PaymentGW } from "../payment/paymentTypes";
 import { MessageBroker } from "../types/broker";
 import orderModel from "./orderModel";
 import customerModel from "../customer/customerModel";
+import { paginationLabels } from "../config/pagination";
 export class OrderController {
   constructor(
     private orderService: OrderService,
@@ -120,6 +127,11 @@ export class OrderController {
       //commit Transaction
     }
 
+    const brokerMessage = {
+      event_type: OrderEvents.ORDER_CREATE,
+      data: newOrder[0],
+    };
+
     //Payment proccessing
     if (paymentMode === PaymentMode.CARD) {
       const session = await this.paymentGw.createSession({
@@ -130,18 +142,183 @@ export class OrderController {
         idempotencyKey: idempotencyKey as string,
       });
 
-      await this.broker.sendMessage("order", JSON.stringify(newOrder));
+      await this.broker.sendMessage(
+        "order",
+        JSON.stringify(brokerMessage),
+        newOrder[0]._id.toString(),
+      );
 
       //todo : update order document
 
       res.json({ paymentUrl: session.paymentUrl });
-    } else {
-      await this.broker.sendMessage("order", JSON.stringify(newOrder));
-
-      // todo: Update order document -> paymentId -> sessionId
-      return res.json({ paymentUrl: null });
     }
+
+    await this.broker.sendMessage(
+      "order",
+      JSON.stringify(brokerMessage),
+      newOrder[0]._id.toString(),
+    );
+    // todo: Update order document -> paymentId -> sessionId
+    return res.json({ paymentUrl: null });
   }
+
+  changeStatus = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    const { role, tenant: tenantId } = req.auth;
+    const orderId = req.params.orderId;
+
+    if (role === ROLES.MANAGER || ROLES.ADMIN) {
+      const order = await orderModel.findOne({ _id: orderId });
+      if (!order) {
+        return next(createHttpError(400, "Order not found."));
+      }
+
+      const isMyRestaurantOrder = order.tenantId === tenantId;
+
+      if (role === ROLES.MANAGER && !isMyRestaurantOrder) {
+        return next(createHttpError(403, "Not allowed."));
+      }
+
+      const updatedOrder = await orderModel.findOneAndUpdate(
+        { _id: orderId },
+        // todo: req.body.status <- Put proper validation.
+        { orderStatus: req.body.status },
+        { new: true },
+      );
+
+      return res.json({ _id: updatedOrder._id });
+    }
+
+    return next(createHttpError(403, "Not allowed."));
+  };
+
+  getAll = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const { role, tenant: userTenantId } = req.auth;
+
+    const tenantId = req.query.tenantId;
+
+    console.log("getting orders");
+
+    if (role === ROLES.CUSTOMER) {
+      return next(createHttpError(403, "Not allowed."));
+    }
+    //todo:crete a service layer code repeat here!!!!!!VVVIMP
+    else if (role === ROLES.ADMIN) {
+      const filter = {};
+
+      if (tenantId) {
+        filter["tenantId"] = tenantId;
+      }
+
+      const matchQuery = {
+        ...filter,
+      };
+
+      const paginateQuery = {
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+      };
+
+      const aggregate = orderModel.aggregate([
+        {
+          $match: matchQuery,
+        },
+
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $lookup: {
+            from: "customers",
+            localField: "customerId",
+            foreignField: "_id",
+            as: "customerId",
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  userId: 1,
+                  firstName: 1,
+                  lastName: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $unwind: "$customerId",
+        },
+      ]);
+
+      // todo: VERY IMPORTANT. add pagination.
+      const order = await orderModel.aggregatePaginate(aggregate, {
+        ...paginateQuery,
+        customLabels: paginationLabels,
+      });
+
+      res.json(order);
+
+      // todo: add logger
+    } else if (role === ROLES.MANAGER) {
+      const filter = {};
+
+      filter["tenantId"] = userTenantId;
+
+      const matchQuery = {
+        ...filter,
+      };
+
+      const paginateQuery = {
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+      };
+
+      const aggregate = orderModel.aggregate([
+        {
+          $match: matchQuery,
+        },
+
+        { $sort: { createdAt: -1 } },
+
+        {
+          $lookup: {
+            from: "customers",
+            localField: "customerId",
+            foreignField: "_id",
+            as: "customerId",
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  userId: 1,
+                  firstName: 1,
+                  lastName: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $unwind: "$customerId",
+        },
+      ]);
+
+      // todo: VERY IMPORTANT. add pagination.
+      const order = await orderModel.aggregatePaginate(aggregate, {
+        ...paginateQuery,
+        customLabels: paginationLabels,
+      });
+
+      res.json(order);
+
+      // todo: add logger
+    } else {
+      return next(createHttpError(403, "Not allowed."));
+    }
+  };
 
   //todo: implement service layer this is for test only
   getMine = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -177,12 +354,18 @@ export class OrderController {
       ? req.query.fields.toString().split(",")
       : []; // ["orderStatus", "paymentStatus"]
 
-    const projection = fields.reduce((acc, field) => {
-      acc[field] = 1;
-      return acc;
-    }, {});
+    const projection = fields.reduce(
+      (acc, field) => {
+        acc[field] = 1;
+        return acc;
+      },
+      { customerId: 1 },
+    );
 
-    const order = await orderModel.findOne({ _id: orderId }, projection);
+    const order = await orderModel
+      .findOne({ _id: orderId }, projection)
+      .populate("customerId")
+      .exec();
 
     if (!order) {
       return next(createHttpError(400, "Order does not exists."));

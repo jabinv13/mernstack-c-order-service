@@ -1,6 +1,7 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, AggregatePaginateModel } from "mongoose";
 import { Order, OrderStatus, PaymentMode, PaymentStatus } from "./orderTypes";
 import { CartItem } from "../types";
+import aggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const toppingSchema = new mongoose.Schema({
   id: {
@@ -113,4 +114,10 @@ const orderSchema = new mongoose.Schema<Order>(
   { timestamps: true },
 );
 
-export default mongoose.model("Order", orderSchema);
+// export default mongoose.model("Order", orderSchema);
+
+orderSchema.plugin(aggregatePaginate);
+export default mongoose.model<Order, AggregatePaginateModel<Order>>(
+  "Order",
+  orderSchema,
+);
