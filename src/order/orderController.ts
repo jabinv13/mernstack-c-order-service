@@ -189,6 +189,22 @@ export class OrderController {
         { new: true },
       );
 
+      const customer = await customerModel.findOne({
+        _id: updatedOrder.customerId,
+      });
+
+      // todo: add logging
+      const brokerMessage = {
+        event_type: OrderEvents.ORDER_STATUS_UPDATE,
+        data: { ...updatedOrder.toObject(), customerId: customer },
+      };
+
+      await this.broker.sendMessage(
+        "order",
+        JSON.stringify(brokerMessage),
+        updatedOrder._id.toString(),
+      );
+
       return res.json({ _id: updatedOrder._id });
     }
 
