@@ -5,6 +5,7 @@ import customerRouter from "./customer/customerRouter";
 import couponRouter from "./coupon/couponRouter";
 import orderRouter from "./order/orderRouter";
 import paymentRouter from "./payment/paymentRouter";
+import config from "config";
 
 import cors from "cors";
 
@@ -12,14 +13,15 @@ const app = express();
 app.use(cookieParser());
 app.use(express.json());
 
+const ALLOWED_DOMAINS = [
+  config.get("frontend.clientUI"),
+  config.get("frontend.adminUI"),
+];
+
 app.use(
   cors({
     //todo:move to .env file
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "http://localhost:8000",
-    ],
+    origin: ALLOWED_DOMAINS as string[],
     credentials: true,
   }),
 );
