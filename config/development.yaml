@@ -6,8 +6,13 @@ auth:
 database:
   url: mongodb+srv://jabinv3:tpB9JMR9AO4OeV7K@cluster0.hbr7j.mongodb.net/order?retryWrites=true&w=majority&appName=Cluster0
 kafka:
-  broker: localhost:9092
+  broker:
+    - localhost:9092
+  sasl:
+    username: ""
+    password: ""
 stripe:
   secretKey: sk_test_51QBtAnSBbc3y1ov5PX50iMyeVK31vZAdZrSW6hke3LWeXSn5s13DlVeAI7vwCMOwV63xiJP3Yz7RCn4FG443gExW00h0ZPZjz7
 frontend:
   clientUI: http://localhost:3000
+  adminUI: http://localhost:5173
